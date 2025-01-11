@@ -8,164 +8,128 @@ This project is a **Sentiment Analysis and Summarization Tool** for call transcr
 
 ---
 
-## Features
+## 🌟 Features
 
-1. **User Authentication**: Secure login for users before accessing the app.
-2. **File Upload**: Upload one or more `.txt` files for analysis.
-3. **Summarization**: Cohere API for summarizing the content of the transcripts.
-4. **Sentiment Analysis**: DistilBERT or an equivalent model for generating sentiment labels (Positive, Neutral, Negative).
-5. **Interactive Display**:
-    - Summarized results in a neat table format.
-6. **Visualizations**:
-    - Pie chart for sentiment distribution.
-    - Histogram for confidence score distribution.
-7. **Professional UI**: Clean, responsive, and professional interface for ease of use.
-8. **Error Handling**: Displays clear error messages if processing fails.
+- **Secure Authentication**
+  - Login-protected dashboard
+  - User session management
+  - Secure credential validation
 
----
+- **File Processing**
+  - Multiple text file upload support
+  - Batch processing capabilities
+  - Progress tracking during analysis
 
-## Setup Instructions
+- **Advanced Analysis**
+  - Sentiment analysis using DistilBERT
+  - Text summarization using Cohere API
+  - Confidence scoring for sentiment predictions
+  - Customizable confidence threshold
 
-### Prerequisites
-- Python 3.8 or higher installed on your system.
-- Virtual environment for managing dependencies (optional but recommended).
-- Hugging Face and Cohere API keys (if required).
+- **Rich Visualizations**
+  - Interactive sentiment distribution pie charts
+  - Confidence score histograms
+  - Timeline analysis graphs
+  - Real-time metrics dashboard
 
-### Installation
+- **Modern UI/UX**
+  - Dark theme interface
+  - Responsive design
+  - Interactive data tables
+  - Loading states and error handling
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd sentiment_analysis_on_call_transcripts
-   ```
+## 🛠️ Technology Stack
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+- **Frontend**: Streamlit
+- **Backend**: FastAPI
+- **ML Models**: 
+  - DistilBERT (Sentiment Analysis)
+  - Cohere API (Text Summarization)
+- **Data Visualization**: Plotly Express
+- **Styling**: Custom CSS with dark theme
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 📋 Prerequisites
 
-4. Add your API keys (if required):
-   Create a `.env` file in the root directory and add:
-   ```
-   COHERE_API_KEY=<your_cohere_api_key>
-   HF_API_KEY=<your_hugging_face_api_key>
-   ```
+```bash
+# Required Python version
+Python 3.8+
 
----
-
-## Running the Application
-
-1. Start the Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
-
-2. Open the application in your browser:
-   The terminal will display a local URL (e.g., `http://localhost:8501`). Click on the link or copy-paste it into your browser.
-
-3. Log in using the default credentials:
-   ```
-   Username: admin
-   Password: 1234
-   ```
-
-4. Upload `.txt` files and start analyzing.
-
----
-
-## File Structure
-
-```plaintext
-.
-├── app.py                 # Streamlit frontend logic
-├── main.py                # Backend API logic
-├── requirements.txt       # Python dependencies
-├── sample_files/          # Sample text files for testing
-├── README.md              # Documentation (this file)
-└── .gitignore             # Ignored files for Git
+# Required Libraries
+streamlit
+fastapi
+torch
+transformers
+cohere
+plotly
+pandas
+python-multipart
+uvicorn
 ```
 
----
+## 🚀 Installation & Setup
 
-## Features Breakdown
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/call-transcript-analysis.git
+cd call-transcript-analysis
+```
 
-### 1. Authentication
-- Protects the application from unauthorized access.
-- Users must log in to access any functionality.
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-### 2. File Upload and Analysis
-- Supports uploading multiple `.txt` files.
-- Processes each file to generate:
-  - **Summary** (using Cohere API).
-  - **Sentiment Label** (using DistilBERT or equivalent model).
-  - **Confidence Score**.
+3. Set up environment variables:
+```bash
+# Create a .env file
+COHERE_API_KEY=your_cohere_api_key
+```
 
-### 3. Results Display
-- Displays results in a **responsive table** with the following columns:
-  - Filename
-  - Summary Snippet
-  - Sentiment Label
-  - Confidence Score
-  - Errors (if any)
-- Full summaries can be viewed in a popup modal.
+4. Run the application:
+```bash
+# Terminal 1 - Start Backend
+uvicorn backend:app --reload --port 8000
 
-### 4. Visualizations
-- **Pie Chart**: Distribution of sentiment labels.
-- **Histogram**: Confidence scores of the predictions.
+# Terminal 2 - Start Frontend
+streamlit run frontend.py
+```
 
----
+## 💻 Usage
 
-## Example Usage
+1. Access the application at `http://localhost:8501`
+2. Login using the following credentials:
+   - Username: `admin`
+   - Password: `1234`
+3. Upload text files containing call transcripts
+4. Adjust the confidence threshold if needed
+5. Click "Analyze Files" to process the transcripts
+6. View the results in the interactive dashboard
 
-1. **Upload Files**:
-   - Drag and drop `.txt` files into the upload box.
+## 📊 Analysis Features
 
-2. **View Results**:
-   - Analyze sentiment and summaries for all uploaded files.
-   - Click `View Summary` to open a modal with the full summary.
+The application provides comprehensive analysis including:
 
-3. **Visualizations**:
-   - Sentiment label distribution.
-   - Confidence score distribution.
+- Sentiment Classification (Positive/Negative/Neutral)
+- Confidence Scores for Predictions
+- Text Summarization
+- Visual Analytics:
+  - Sentiment Distribution
+  - Confidence Score Distribution
+  - Timeline Analysis
 
----
+## 🔐 Security Features
 
-## API Integration
+- Password-protected access
+- Session management
+- Secure file handling
+- Error handling and input validation
 
-### Cohere API (Summarization)
-- Make sure you have a Cohere API key.
-- Add the key to your `.env` file.
+----
 
-### Hugging Face (Sentiment Analysis)
-- Uses Hugging Face Transformers for running sentiment analysis.
-- Ensure the `requirements.txt` lists the required packages.
+## 🙏 Acknowledgments
 
----
-
-## Troubleshooting
-
-1. **Missing Dependencies**:
-   - Run `pip install -r requirements.txt`.
-
-2. **Port Already in Use**:
-   - Specify a different port: `streamlit run app.py --server.port=8502`.
-
-3. **API Key Errors**:
-   - Check the `.env` file for correct keys.
-
----
-
-## Future Enhancements
-
-1. Add support for additional file formats (e.g., PDFs).
-2. Integrate more robust models for multilingual sentiment analysis.
-3. Enhance the UI/UX with advanced design frameworks.
-
----
-
+- Hugging Face for DistilBERT model
+- Cohere for text summarization API
+- Streamlit for the amazing web framework
+- FastAPI for the efficient backend framework
+----
