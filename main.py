@@ -30,7 +30,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Cohere Setup
 # Manually provide the Cohere API key
-COHERE_API_KEY = "ZvWNnq87BJPfEmegG3zunSB65dzSF1ZL28TXM6gI"  # Replace with your actual Cohere API key
+COHERE_API_KEY = "your cohere api"  # Replace with your actual Cohere API key
 co = cohere.Client(COHERE_API_KEY)
 
 
