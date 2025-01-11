@@ -12,7 +12,6 @@ This project is a **Sentiment Analysis and Summarization Tool** for call transcr
 4. **Sentiment Analysis**: DistilBERT or an equivalent model for generating sentiment labels (Positive, Neutral, Negative).
 5. **Interactive Display**:
     - Summarized results in a neat table format.
-    - View full summaries via a popup modal.
 6. **Visualizations**:
     - Pie chart for sentiment distribution.
     - Histogram for confidence score distribution.
