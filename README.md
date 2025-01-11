@@ -4,6 +4,10 @@ This project is a **Sentiment Analysis and Summarization Tool** for call transcr
 
 ---
 
+https://github.com/ThiruDeepak2311/Sentiment_Analysis_on_Call_Transcripts/issues/1#issue-2781683006
+
+---
+
 ## Features
 
 1. **User Authentication**: Secure login for users before accessing the app.
