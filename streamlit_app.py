@@ -1,14 +1,33 @@
 import streamlit as st
-import requests
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+import cohere
 import pandas as pd
 import plotly.express as px
 
-# Hardcoded credentials
-VALID_USERNAME = "admin"
-VALID_PASSWORD = "1234"
+# Initialize models and tokenizer
+@st.cache_resource
+def load_sentiment_model():
+    model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    sentiment_pipeline = pipeline(
+        "sentiment-analysis",
+        model=model,
+        tokenizer=tokenizer,
+        device="cpu"
+    )
+    return sentiment_pipeline
 
-# Complete styling with enhanced visuals (script related to summary removed)
-STYLES = """
+@st.cache_resource
+def get_cohere_client():
+    COHERE_API_KEY = st.secrets.get("COHERE_API_KEY", "your-default-key")
+    return cohere.Client(COHERE_API_KEY)
+
+VALID_USERNAME = st.secrets.get("ADMIN_USERNAME", "admin")
+VALID_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1234")
+
+st.markdown("""
 <style>
     body {
         background-color: #1a1a1a;
@@ -45,21 +64,25 @@ STYLES = """
         background-color: #2d2d2d;
         border-radius: 8px;
         overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     .styled-table th {
         background-color: #1e3a5f;
         color: #ffffff;
-        padding: 12px;
+        padding: 16px;
         text-align: left;
         font-weight: 600;
+        font-size: 0.95rem;
     }
     .styled-table td {
-        padding: 12px;
+        padding: 16px;
         border-top: 1px solid #404040;
         color: #ffffff;
+        font-size: 0.9rem;
     }
     .styled-table tr:hover {
         background-color: #363636;
+        transition: background-color 0.2s ease;
     }
     .metric-container {
         display: flex;
@@ -75,6 +98,11 @@ STYLES = """
         flex: 1;
         min-width: 200px;
         text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
     }
     .metric-value {
         font-size: 1.8rem;
@@ -85,12 +113,44 @@ STYLES = """
         font-size: 0.9rem;
         opacity: 0.9;
     }
+    .detailed-analysis {
+        background-color: #2d2d2d;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .status-success {
+        color: #4CAF50;
+        font-weight: bold;
+    }
+    .status-error {
+        color: #f44336;
+        font-weight: bold;
+    }
+    .summary-container {
+        background-color: #363636;
+        padding: 1.5rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+        border-left: 4px solid #1e3a5f;
+    }
+    .sentiment-positive {
+        color: #4CAF50;
+        font-weight: bold;
+    }
+    .sentiment-negative {
+        color: #f44336;
+        font-weight: bold;
+    }
+    .sentiment-neutral {
+        color: #FFC107;
+        font-weight: bold;
+    }
 </style>
-"""
+""", unsafe_allow_html=True)
 
 def show_login():
-    st.markdown(STYLES, unsafe_allow_html=True)
-    
     st.title("🔐 Text Analysis Dashboard")
     
     with st.container():
@@ -103,41 +163,64 @@ def show_login():
             if st.button("Login"):
                 if username == VALID_USERNAME and password == VALID_PASSWORD:
                     st.session_state["logged_in"] = True
-                    st.success("Login successful!")
                     st.rerun()
                 else:
                     st.error("Invalid credentials. Please try again.")
 
-def create_metrics_dashboard(valid_df):
-    st.markdown("""
-    <div class="metric-container">
-        <div class="metric-card">
-            <div class="metric-label">Total Files</div>
-            <div class="metric-value">{}</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Positive Sentiment</div>
-            <div class="metric-value">{:.1f}%</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Average Confidence</div>
-            <div class="metric-value">{:.1f}%</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Highest Confidence</div>
-            <div class="metric-value">{:.1f}%</div>
-        </div>
-    </div>
-    """.format(
-        len(valid_df),
-        (valid_df["sentiment_label"] == "POSITIVE").mean() * 100,
-        valid_df["confidence"].mean() * 100,
-        valid_df["confidence"].max() * 100
-    ), unsafe_allow_html=True)
+def get_text_summary(text, co):
+    try:
+        response = co.summarize(
+            text=text,
+            length='medium',
+            format='paragraph',
+            extractiveness="high",
+            temperature=0.3,
+            additional_command="Focus on emotional tone and key points that indicate sentiment."
+        )
+        return response.summary
+    except Exception as e:
+        st.error(f"Error in summarization: {str(e)}")
+        return text[:1000]
+
+def analyze_text(text, sentiment_pipeline, threshold=0.6):
+    try:
+        sentiment_result = sentiment_pipeline(text[:512])
+        if not sentiment_result:
+            return None
+            
+        top_label = sentiment_result[0]["label"].upper()
+        top_score = sentiment_result[0]["score"]
+        
+        final_label = top_label
+        if top_score < threshold:
+            final_label = "NEUTRAL"
+            
+        return {
+            "sentiment_label": final_label,
+            "confidence": top_score
+        }
+        
+    except Exception as e:
+        st.error(f"Error in sentiment analysis: {str(e)}")
+        return None
+
+def process_file_content(file_content, co, sentiment_pipeline, confidence_threshold):
+    try:
+        summary = get_text_summary(file_content, co)
+        sentiment_data = analyze_text(summary, sentiment_pipeline, confidence_threshold)
+        
+        if sentiment_data:
+            return {
+                "summary": summary,
+                **sentiment_data
+            }
+        return None
+        
+    except Exception as e:
+        st.error(f"Error in processing: {str(e)}")
+        return None
 
 def create_visualizations(valid_df):
-    st.markdown("### 📊 Analysis Visualizations")
-    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -145,7 +228,7 @@ def create_visualizations(valid_df):
             valid_df,
             names="sentiment_label",
             title="Sentiment Distribution",
-            color_discrete_sequence=["#4CAF50", "#f44336"],
+            color_discrete_sequence=["#4CAF50", "#f44336", "#FFC107"],
             hole=0.4
         )
         fig_sentiment.update_layout(
@@ -161,7 +244,7 @@ def create_visualizations(valid_df):
             x="confidence",
             color="sentiment_label",
             title="Confidence Distribution",
-            color_discrete_sequence=["#4CAF50", "#f44336"]
+            color_discrete_sequence=["#4CAF50", "#f44336", "#FFC107"]
         )
         fig_conf.update_layout(
             plot_bgcolor="rgba(0,0,0,0)",
@@ -176,7 +259,7 @@ def create_visualizations(valid_df):
         y="confidence",
         color="sentiment_label",
         title="Confidence Timeline",
-        color_discrete_sequence=["#4CAF50", "#f44336"]
+        color_discrete_sequence=["#4CAF50", "#f44336", "#FFC107"]
     )
     fig_timeline.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
@@ -187,11 +270,19 @@ def create_visualizations(valid_df):
     )
     st.plotly_chart(fig_timeline, use_container_width=True)
 
+def get_sentiment_class(sentiment):
+    if sentiment == "POSITIVE":
+        return "sentiment-positive"
+    elif sentiment == "NEGATIVE":
+        return "sentiment-negative"
+    return "sentiment-neutral"
+
 def show_main_app():
-    st.markdown(STYLES, unsafe_allow_html=True)
-    
     st.title("📊 Text Analysis Dashboard")
     st.markdown(f"Welcome back, *{VALID_USERNAME}*!")
+    
+    sentiment_pipeline = load_sentiment_model()
+    co = get_cohere_client()
     
     with st.sidebar:
         st.markdown("### ⚙ Settings")
@@ -213,85 +304,123 @@ def show_main_app():
         accept_multiple_files=True
     )
     
-    if st.button("🔍 Analyze Files", use_container_width=True):
+    if st.button("🔍 Analyze Files"):
         if not uploaded_files:
             st.warning("Please upload at least one file to analyze.")
             return
         
-        with st.spinner("Processing files..."):
-            try:
-                files = [
-                    ("files", (file.name, file.getvalue(), "text/plain"))
-                    for file in uploaded_files
-                ]
-                
-                response = requests.post(
-                    "http://127.0.0.1:8000/analyze",
-                    files=files,
-                    data={"threshold": str(confidence_threshold)}
-                )
-                
-                if response.status_code != 200:
-                    st.error(f"API Error: {response.text}")
-                    return
-                
-                results = response.json()
-                
-                if not results.get("results"):
-                    st.info("No results to display.")
-                    return
-                
-                valid_results = []
-                for result in results["results"]:
-                    if not result.get("error"):
+        results = []
+        valid_results = []
+        
+        with st.spinner("Processing files... This might take a moment."):
+            for file in uploaded_files:
+                try:
+                    content = file.read().decode("utf-8")
+                    processed_data = process_file_content(
+                        content, 
+                        co, 
+                        sentiment_pipeline, 
+                        confidence_threshold
+                    )
+                    
+                    if processed_data:
+                        result = {
+                            "filename": file.name,
+                            **processed_data
+                        }
+                        results.append(result)
                         valid_results.append({
-                            "filename": result["filename"],
-                            "sentiment_label": result["sentiment_label"],
-                            "confidence": result["confidence"]
+                            "filename": file.name,
+                            "sentiment_label": processed_data["sentiment_label"],
+                            "confidence": processed_data["confidence"]
                         })
+                    
+                except Exception as e:
+                    results.append({
+                        "filename": file.name,
+                        "error": str(e)
+                    })
+        
+        if valid_results:
+            df = pd.DataFrame(valid_results)
+            
+            # Metrics Dashboard
+            st.markdown(f"""
+            <div class="metric-container">
+                <div class="metric-card">
+                    <div class="metric-label">Total Files</div>
+                    <div class="metric-value">{len(df)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Positive Sentiment</div>
+                    <div class="metric-value">{(df['sentiment_label'] == 'POSITIVE').mean() * 100:.1f}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Average Confidence</div>
+                    <div class="metric-value">{df['confidence'].mean() * 100:.1f}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Highest Confidence</div>
+                    <div class="metric-value">{df['confidence'].max() * 100:.1f}%</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Analysis Results Table
+            st.markdown("### 📋 Analysis Results")
+            
+            table_html = "<table class='styled-table'><thead><tr>"
+            headers = ["#", "Filename", "Sentiment", "Confidence", "Status"]
+            
+            for header in headers:
+                table_html += f"<th>{header}</th>"
+            
+            table_html += "</tr></thead><tbody>"
+            
+            for i, result in enumerate(results, 1):
+                table_html += "<tr>"
+                table_html += f"<td>{i}</td>"
+                table_html += f"<td>{result['filename']}</td>"
                 
-                if valid_results:
-                    df = pd.DataFrame(valid_results)
-                    
-                    create_metrics_dashboard(df)
-                    
-                    st.markdown("### 📋 Analysis Results")
-                    # Adjust table headers and columns since summary is removed
-                    table_html = "<table class='styled-table'><thead><tr>"
-                    headers = ["#", "Filename", "Sentiment", "Confidence", "Status"]
-                    
-                    for header in headers:
-                        table_html += f"<th>{header}</th>"
-                    
-                    table_html += "</tr></thead><tbody>"
-                    
-                    for i, result in enumerate(results["results"], 1):
-                        table_html += "<tr>"
-                        table_html += f"<td>{i}</td>"
-                        table_html += f"<td>{result['filename']}</td>"
-                        
-                        if result.get("error"):
-                            table_html += "<td>N/A</td>"
-                            table_html += "<td>N/A</td>"
-                            table_html += f"<td>❌ {result['error']}</td>"
-                        else:
-                            table_html += f"<td>{result['sentiment_label']}</td>"
-                            table_html += f"<td>{result['confidence']:.2%}</td>"
-                            table_html += "<td>✅ Success</td>"
-                        
-                        table_html += "</tr>"
-                    
-                    table_html += "</tbody></table>"
-                    st.markdown(table_html, unsafe_allow_html=True)
-                    
-                    create_visualizations(df)
+                if "error" in result:
+                    table_html += "<td colspan='2'>N/A</td>"
+                    table_html += f"<td class='status-error'>❌ Error</td>"
+                else:
+                    sentiment_class = get_sentiment_class(result['sentiment_label'])
+                    table_html += f"<td class='{sentiment_class}'>{result['sentiment_label']}</td>"
+                    table_html += f"<td>{result['confidence']:.2%}</td>"
+                    table_html += f"<td class='status-success'>✅ Success</td>"
                 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Connection Error: {str(e)}")
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                table_html += "</tr>"
+            
+            table_html += "</tbody></table>"
+            st.markdown(table_html, unsafe_allow_html=True)
+            
+            # Detailed Analysis Section
+            st.markdown("### 📝 Detailed Analysis")
+            for i, result in enumerate(results, 1):
+                with st.expander(f"File {i}: {result['filename']}"):
+                    if "error" in result:
+                        st.error(f"Error: {result['error']}")
+                    else:
+                        st.markdown(f"""
+                        <div class='detailed-analysis'>
+                            <h4>Analysis Results</h4>
+                            <p><strong>Sentiment:</strong> <span class='{get_sentiment_class(result["sentiment_label"])}'>{result["sentiment_label"]}</span></p>
+                            <p><strong>Confidence Score:</strong> {result["confidence"]:.2%}</p>
+                            <div class='summary-container'>
+                                <h4>Content Summary</h4>
+                                <p>{result["summary"]}</p>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            # Visualizations
+            st.markdown("### 📊 Analysis Visualizations")
+            create_visualizations(df)
 
 def main():
+    """Main application entry point"""
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
     
